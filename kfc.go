@@ -21,12 +21,13 @@ const inputX int = 5
 const inputY int = 5
 
 type Contexts struct {
-	selected_context       int
-	context_array_all      []string
-	context_array_filtered []string
-	searchString           string
-	currentContext         string
-	SetOutput              string
+	selected_context            int
+	context_array_all           []string
+	context_array_filtered      []string
+	searchString                string
+	currentContext              string
+	SetOutput                   string
+	context_array_filtered_size int
 }
 
 func main() {
@@ -51,11 +52,21 @@ mainloop:
 	for {
 		e := termbox.PollEvent()
 
-		if e.Key == termbox.KeyArrowDown {
-			contexts.selected_context++
+		// Check for CNTRL-C
+		if e.Key == 3 {
+			break mainloop
 		}
-		if e.Key == termbox.KeyArrowUp {
-			contexts.selected_context--
+
+		// Navigation
+		if e.Key == termbox.KeyArrowDown {
+			if contexts.selected_context < (contexts.context_array_filtered_size - 1) {
+				contexts.selected_context++
+			}
+
+		} else if e.Key == termbox.KeyArrowUp {
+			if contexts.selected_context > 0 {
+				contexts.selected_context--
+			}
 		}
 
 		// Append the last keypress to the search string
@@ -65,6 +76,7 @@ mainloop:
 
 		// Handle backspace
 		if e.Key == 127 {
+			// Make sure we don't go below zero length
 			if len(contexts.searchString) > 0 {
 				contexts.searchString = contexts.searchString[:len(contexts.searchString)-1]
 			}
@@ -82,11 +94,6 @@ mainloop:
 
 		debug(e, contexts)
 
-		//if e.Key == 13 || e.Key == 3 {
-		if e.Key == 3 {
-			break mainloop
-		}
-
 		termbox.Flush()
 	}
 }
@@ -98,7 +105,6 @@ func (c *Contexts) useContext() {
 		log.Fatal(err1)
 	}
 	c.SetOutput = string(out1)
-
 }
 
 func (c *Contexts) displayCurrentContext() {
@@ -130,6 +136,12 @@ func (c *Contexts) filterContexts(e *termbox.Event) {
 		if strings.Contains(context, c.searchString) {
 			c.context_array_filtered = append(c.context_array_filtered, context)
 		}
+	}
+	c.context_array_filtered_size = len(c.context_array_filtered)
+
+	// If our filter gets smaller than the currently selected, then move the selection accordingly
+	if c.context_array_filtered_size < c.selected_context {
+		c.selected_context = (c.context_array_filtered_size - 1)
 	}
 }
 
@@ -207,13 +219,8 @@ func debug(e termbox.Event, c *Contexts) {
 		termbox.SetCell(i, inputY-2, ' ', fg, bg) // Clear debug display
 	}
 
-	//output := fmt.Sprintf("EventKey: %d Character: %c Search String %s Search String length %d",
-	//	e.Key, e.Ch, c.searchString, len(c.searchString))
-
-	output := fmt.Sprintf("Selected: %s Current: %s Set Output %s",
-		c.context_array_filtered[c.selected_context],
-		c.currentContext,
-		c.SetOutput)
+	output := fmt.Sprintf("Filtered array size: %d  Selected context: %d",
+		c.context_array_filtered_size, c.selected_context)
 
 	x := inputX
 	for _, c := range output {
