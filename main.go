@@ -10,7 +10,7 @@ import (
 	"github.com/nsf/termbox-go"
 )
 
-var debugMode bool = true
+var debugMode bool = false
 var inputCharCount int = 0
 var fg = termbox.ColorDefault
 var bg = termbox.ColorDefault
@@ -25,6 +25,8 @@ type Contexts struct {
 	context_array_all      []string
 	context_array_filtered []string
 	searchString           string
+	currentContext         string
+	SetOutput              string
 }
 
 func main() {
@@ -38,6 +40,7 @@ func main() {
 	termbox.SetInputMode(termbox.InputAlt | termbox.InputMouse)
 	drawInputBox(fg, bg)
 	contexts.getContexts()
+	contexts.displayCurrentContext()
 	contexts.displayOutputText(fg, bg)
 	termbox.Flush()
 	mainLoop(contexts)
@@ -62,19 +65,62 @@ mainloop:
 
 		// Handle backspace
 		if e.Key == 127 {
-			contexts.searchString = contexts.searchString[:len(contexts.searchString)-1]
+			if len(contexts.searchString) > 0 {
+				contexts.searchString = contexts.searchString[:len(contexts.searchString)-1]
+			}
 		}
 
 		contexts.displayInputText(&e, fg, bg)
 		contexts.filterContexts(&e)
 		contexts.clearOutputText()
 		contexts.displayOutputText(fg, bg)
+
+		if e.Key == 13 {
+			contexts.useContext()
+			contexts.displayCurrentContext()
+		}
+
 		debug(e, contexts)
 
-		if e.Key == 13 || e.Key == 3 {
+		//if e.Key == 13 || e.Key == 3 {
+		if e.Key == 3 {
 			break mainloop
 		}
+
 		termbox.Flush()
+	}
+}
+
+func (c *Contexts) useContext() {
+	ctx := c.context_array_filtered[c.selected_context]
+	out1, err1 := exec.Command("kubectl", "config", "use-context", ctx).Output()
+	if err1 != nil {
+		log.Fatal(err1)
+	}
+	c.SetOutput = string(out1)
+
+}
+
+func (c *Contexts) displayCurrentContext() {
+
+	out2, err2 := exec.Command("kubectl", "config", "current-context").Output()
+	if err2 != nil {
+		log.Fatal(err2)
+	}
+	c.currentContext = string(out2)
+
+	x := inputX
+	y := inputY - 2
+
+	output := fmt.Sprintf("Current ctx: %s", c.currentContext)
+
+	for i := 0; i <= 100; i++ {
+		termbox.SetCell(i, y, ' ', fg, bg)
+	}
+
+	for _, c := range output {
+		termbox.SetCell(x, y, c, termbox.ColorMagenta, bg)
+		x++
 	}
 }
 
@@ -161,7 +207,14 @@ func debug(e termbox.Event, c *Contexts) {
 		termbox.SetCell(i, inputY-2, ' ', fg, bg) // Clear debug display
 	}
 
-	output := fmt.Sprintf("EventKey: %d Character: %c Search String %s Search String length %d", e.Key, e.Ch, c.searchString, len(c.searchString))
+	//output := fmt.Sprintf("EventKey: %d Character: %c Search String %s Search String length %d",
+	//	e.Key, e.Ch, c.searchString, len(c.searchString))
+
+	output := fmt.Sprintf("Selected: %s Current: %s Set Output %s",
+		c.context_array_filtered[c.selected_context],
+		c.currentContext,
+		c.SetOutput)
+
 	x := inputX
 	for _, c := range output {
 		termbox.SetCell(x, inputY-2, c, fg, bg)
